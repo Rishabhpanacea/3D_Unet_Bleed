@@ -8,8 +8,16 @@ from src.utils.utils import custom_collate
 from src.configuration.config import TrainingDir, batch_size , num_workers ,pin_memory, LEARNING_RATE, num_epochs
 from src.Training.Train import train_fn
 import torch.optim as optim
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 if __name__ == "__main__":
+
+    train_transform = A.Compose(
+    [
+        ToTensorV2(),
+    ],
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     DunetModel = UNet3D(in_channels=1, out_channels=9).to(device)
 
@@ -22,7 +30,7 @@ if __name__ == "__main__":
     ImagesDir = os.path.join(TrainingDir, 'Images')
     MasksDir = os.path.join(TrainingDir, 'Masks')
     print(os.listdir(TrainingDir))
-    data = CustomDataset(ImagesDir, MasksDir )
+    data = CustomDataset(ImagesDir, MasksDir ,transform= train_transform)
 
     batch_size = 2
     num_workers = 0
