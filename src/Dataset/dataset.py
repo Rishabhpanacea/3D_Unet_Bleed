@@ -48,8 +48,8 @@ class CustomDataset(Dataset):
         ImageVolume = np.stack(ImageVolume, axis = 0)
         ImageVolume = np.expand_dims(ImageVolume, axis=0)
 
-        ImageVolume = torch.tensor(ImageVolume, dtype=torch.float32)
-        Maskvolume = torch.tensor(Maskvolume, dtype=torch.float32)
+        ImageVolume = torch.tensor(ImageVolume, dtype=torch.float16)
+        Maskvolume = torch.tensor(Maskvolume, dtype=torch.float16)
 
 
 
