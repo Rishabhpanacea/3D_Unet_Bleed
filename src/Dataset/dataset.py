@@ -1,4 +1,5 @@
 import os
+import torch
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
@@ -46,6 +47,10 @@ class CustomDataset(Dataset):
         Maskvolume = np.stack(Maskvolume, axis = 0)
         ImageVolume = np.stack(ImageVolume, axis = 0)
         ImageVolume = np.expand_dims(ImageVolume, axis=0)
+
+        ImageVolume = torch.tensor(ImageVolume, dtype=torch.float32)
+        Maskvolume = torch.tensor(Maskvolume, dtype=torch.float32)
+
 
 
         return ImageVolume, Maskvolume
