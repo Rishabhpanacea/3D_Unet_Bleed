@@ -10,7 +10,7 @@ datadict = {'BackGround' :0,
 
 TrainingDir = r"C:\Users\Rishabh\Documents\pytorch-3dunet\TrainingData"
 
-batch_size = 2
+batch_size = 1
 num_workers = 0
 pin_memory = True
 LEARNING_RATE = 1e-4
