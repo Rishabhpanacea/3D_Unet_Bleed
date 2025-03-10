@@ -46,10 +46,6 @@ class CustomDataset(Dataset):
         Maskvolume = np.stack(Maskvolume, axis = 0)
         ImageVolume = np.stack(ImageVolume, axis = 0)
         ImageVolume = np.expand_dims(ImageVolume, axis=0)
-        if self.transform is not None:
-            augmentations = self.transform(image=ImageVolume, mask=Maskvolume)
-            ImageVolume = augmentations["image"]
-            Maskvolume = augmentations["mask"]
 
 
         return ImageVolume, Maskvolume
