@@ -423,4 +423,8 @@ def custom_collate(batch):
         # print("-"*50)
     NewImageVolume = np.stack(NewImageVolume, axis=0)
     NewMaskvolume = np.stack(NewMaskvolume, axis=0)
+
+    NewImageVolume = torch.tensor(NewImageVolume, dtype=torch.float32)
+    NewMaskvolume = torch.tensor(NewMaskvolume, dtype=torch.float32)
+
     return NewImageVolume, NewMaskvolume
