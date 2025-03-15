@@ -1,6 +1,7 @@
 import torch
 import tqdm
-def train_fn(loader, model, optimizer, loss_fn, scaler, DEVICE):
+
+def train_fn(loader, model, optimizer, loss_fn, scaler, ):
     loop = tqdm(loader)
 
     for batch_idx, (data, targets) in enumerate(loop):

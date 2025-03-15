@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from skimage.color import label2rgb
 from torch import optim
-
+from src.configuration.config import IMAGE_HEIGHT, IMAGE_WIDTH
 
 def save_checkpoint(state, is_best, checkpoint_dir):
     """Saves model and training parameters at '{checkpoint_dir}/last_checkpoint.pytorch'.
@@ -412,7 +412,7 @@ def custom_collate(batch):
         Maskvolume = batch[i][1]
         remainingslice = maxDepth - ImageVolume.shape[1]
         imgrem = np.zeros((1,remainingslice, 512, 512))
-        mskrem = np.zeros((9,remainingslice, 512, 512))
+        mskrem = np.zeros((1,remainingslice, 512, 512))
         if remainingslice > 0:
             NewImageVolume.append(np.concatenate((ImageVolume, imgrem), axis=1))
             NewMaskvolume.append(np.concatenate((Maskvolume, mskrem), axis=1))
@@ -424,7 +424,47 @@ def custom_collate(batch):
     NewImageVolume = np.stack(NewImageVolume, axis=0)
     NewMaskvolume = np.stack(NewMaskvolume, axis=0)
 
-    NewImageVolume = torch.tensor(NewImageVolume, dtype=torch.float16)
-    NewMaskvolume = torch.tensor(NewMaskvolume, dtype=torch.float16)
+    NewImageVolume = torch.tensor(NewImageVolume, dtype=torch.uint8)
+    NewMaskvolume = torch.tensor(NewMaskvolume, dtype=torch.uint8)
+
+    return NewImageVolume, NewMaskvolume
+
+
+
+
+
+
+def custom_collate_Variable_HW(batch):
+    maxDepth = 0
+    for i in range(len(batch)):
+        ImageVolume = batch[i][0]
+        Maskvolume = batch[i][1]
+        # print(ImageVolume.shape)
+        # print(Maskvolume.shape)
+        # print(np.unique(Maskvolume))
+        maxDepth = max(maxDepth, ImageVolume.shape[1])
+        
+
+    NewImageVolume = []
+    NewMaskvolume = []
+    for i in range(len(batch)):
+        ImageVolume = batch[i][0]
+        Maskvolume = batch[i][1]
+        remainingslice = maxDepth - ImageVolume.shape[1]
+        imgrem = np.zeros((1,remainingslice,IMAGE_HEIGHT , IMAGE_WIDTH))
+        mskrem = np.zeros((1,remainingslice, IMAGE_HEIGHT, IMAGE_WIDTH))
+        if remainingslice > 0:
+            NewImageVolume.append(np.concatenate((ImageVolume, imgrem), axis=1))
+            NewMaskvolume.append(np.concatenate((Maskvolume, mskrem), axis=1))
+        else:
+            NewImageVolume.append(ImageVolume)
+            NewMaskvolume.append(Maskvolume)
+            
+        # print("-"*50)
+    NewImageVolume = np.stack(NewImageVolume, axis=0)
+    NewMaskvolume = np.stack(NewMaskvolume, axis=0)
+
+    NewImageVolume = torch.tensor(NewImageVolume, dtype=torch.float32)
+    NewMaskvolume = torch.tensor(NewMaskvolume, dtype=torch.uint8)
 
     return NewImageVolume, NewMaskvolume
