@@ -16,8 +16,8 @@ pin_memory = True
 LEARNING_RATE = 1e-4
 num_epochs = 2
 
-# IMAGE_HEIGHT = 256
-# IMAGE_WIDTH = 256
-
 IMAGE_HEIGHT = 256
 IMAGE_WIDTH = 256
+
+# IMAGE_HEIGHT = 64
+# IMAGE_WIDTH = 64

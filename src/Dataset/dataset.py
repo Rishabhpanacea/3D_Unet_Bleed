@@ -7,6 +7,92 @@ import cv2
 from src.configuration.config import datadict
 from src.configuration.config import IMAGE_HEIGHT, IMAGE_WIDTH
 
+import torchio as tio
+
+class CustomDatasetHW_3D(Dataset):
+    def __init__(self, image_dir, mask_dir, datadict=datadict, output_size=(256, 256), output_depth=5):
+        self.image_dir = image_dir
+        self.mask_dir = mask_dir
+        self.images = os.listdir(image_dir)
+        self.series = os.listdir(mask_dir)
+        self.datadict = datadict if datadict else {}
+        self.reversed_dict = {v: k for k, v in self.datadict.items()}
+
+        self.output_size = output_size  # (H, W)
+        self.output_depth = (IMAGE_HEIGHT, IMAGE_WIDTH)   # Depth for resizing
+
+        # Define 3D Transformations using TorchIO
+        self.tio_transform = tio.Compose([
+            tio.RandomAffine(scales=(0.9, 1.1), degrees=35),  # Random rotation & scaling
+            tio.RandomFlip(axes=(0, 1), p=0.5),  # Flip along horizontal & vertical axes
+            tio.ZNormalization(),  # Normalize
+        ])
+
+    def __len__(self):
+        return len(self.series)
+
+    def resize_volume(self, volume, new_depth):
+        """Resize depth using linear interpolation."""
+        d, h, w = volume.shape
+        resized_volume = np.zeros((new_depth, h, w), dtype=volume.dtype)
+
+        for i in range(new_depth):
+            orig_idx = int(i * (d / new_depth))  # Interpolation
+            resized_volume[i] = volume[orig_idx]
+
+        return resized_volume
+
+    def __getitem__(self, index):
+        Maskvolume = []
+        ImageVolume = []
+        flag = 0
+
+        for key in range(len(self.reversed_dict.keys())):
+            category = self.reversed_dict[key]
+            Maskcatgvolume = []
+            Masks = os.path.join(self.mask_dir, os.listdir(self.mask_dir)[index], category)
+            MasksList = sorted(os.listdir(Masks))
+            
+            for msk in MasksList:
+                pngMask = np.array(Image.open(os.path.join(Masks, msk)))
+                Maskcatgvolume.append(pngMask)
+    
+                if msk in self.images and flag == 0:
+                    pngimage = np.array(Image.open(os.path.join(self.image_dir, msk)))
+                    ImageVolume.append(pngimage)
+            flag = 1
+
+            Maskcatgvolume = np.stack(Maskcatgvolume, axis=0)
+            Maskvolume.append(Maskcatgvolume)
+
+        Maskvolume = np.stack(Maskvolume, axis=0)
+        ImageVolume = np.stack(ImageVolume, axis=0)
+        ImageVolume = np.expand_dims(ImageVolume, axis=0)
+
+        # Convert multi-category masks to a single-class mask
+        newMaskVolume = np.stack([np.argmax(Maskvolume[:, i, :, :], axis=0) for i in range(Maskvolume.shape[1])], axis=0)
+        newMaskVolume = np.expand_dims(newMaskVolume, axis=0)
+
+        # Apply 3D Transformations using TorchIO
+        image_tensor = torch.tensor(ImageVolume, dtype=torch.float32)
+        mask_tensor = torch.tensor(newMaskVolume, dtype=torch.int64)
+
+        subject = tio.Subject(
+            image=tio.ScalarImage(tensor=image_tensor),
+            mask=tio.LabelMap(tensor=mask_tensor),
+        )
+
+        transformed_subject = self.tio_transform(subject)
+        transformed_image = transformed_subject["image"].tensor.numpy()
+        transformed_mask = transformed_subject["mask"].tensor.numpy()
+
+        # Resize to the desired shape
+        resized_images = np.array([cv2.resize(img, self.output_size, interpolation=cv2.INTER_LINEAR) for img in transformed_image[0]])
+        resized_masks = np.array([cv2.resize(mask, self.output_size, interpolation=cv2.INTER_NEAREST) for mask in transformed_mask[0]])
+
+        return torch.tensor(resized_images).unsqueeze(0), torch.tensor(resized_masks).unsqueeze(0)
+
+
 class CustomDataset(Dataset):
     def __init__(self, image_dir, mask_dir, transform=None, datadict=datadict):
         self.image_dir = image_dir
