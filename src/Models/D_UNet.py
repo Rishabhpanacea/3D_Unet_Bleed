@@ -159,6 +159,37 @@ class UNet3D(AbstractUNet):
                                      upsample=upsample,
                                      dropout_prob=dropout_prob,
                                      is3d=True)
+
+
+
+class ResidualUNetSE3D(AbstractUNet):
+    """_summary_
+    Residual 3DUnet model implementation with squeeze and excitation based on 
+    https://arxiv.org/pdf/1706.00120.pdf.
+    Uses ResNetBlockSE as a basic building block, summation joining instead
+    of concatenation joining and transposed convolutions for upsampling (watch
+    out for block artifacts). Since the model effectively becomes a residual
+    net, in theory it allows for deeper UNet.
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=5, is_segmentation=True, conv_padding=1,
+                 conv_upscale=2, upsample='default', dropout_prob=0.1, **kwargs):
+        super(ResidualUNetSE3D, self).__init__(in_channels=in_channels,
+                                               out_channels=out_channels,
+                                               final_sigmoid=final_sigmoid,
+                                               basic_module=ResNetBlockSE,
+                                               f_maps=f_maps,
+                                               layer_order=layer_order,
+                                               num_groups=num_groups,
+                                               num_levels=num_levels,
+                                               is_segmentation=is_segmentation,
+                                               conv_padding=conv_padding,
+                                               conv_upscale=conv_upscale,
+                                               upsample=upsample,
+                                               dropout_prob=dropout_prob,
+                                               is3d=True)
+
     
 
 
