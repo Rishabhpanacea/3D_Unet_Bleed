@@ -11,24 +11,32 @@ from src.configuration.config import (
     pin_memory, LEARNING_RATE
 )
 from src.Dataset.dataset import CustomDatasetHW_3D
-from src.utils.losses import GeneralizedDiceLoss
 from src.utils.utils import custom_collate_Variable_HW
 from src.Models.D_UNet import UNet3D
 
-def combined_loss(outputs, targets, num_classes=9, dice_weight=0.5):
-    # Convert targets to one-hot encoding for Dice loss.
-    # targets: shape (N, H, W, D) with int labels. Convert to (N, H, W, D, num_classes)
+def dice_loss(outputs, targets, num_classes=9, epsilon=1e-6):
+    """
+    Compute the Dice loss for multi-class segmentation.
+    - outputs: logits with shape (N, num_classes, H, W, D).
+    - targets: ground truth labels with shape (N, H, W, D) as integer class indices.
+    """
+    # Convert logits to probabilities
+    outputs = torch.softmax(outputs, dim=1)
+    
+    # Convert targets to one-hot encoding: shape (N, H, W, D, num_classes)
     one_hot_targets = F.one_hot(targets.long(), num_classes=num_classes).float()
-    # Rearrange dimensions to (N, num_classes, H, W, D)
+    # Rearrange to (N, num_classes, H, W, D)
     one_hot_targets = one_hot_targets.permute(0, 4, 1, 2, 3)
     
-    # Compute the Generalized Dice Loss using one-hot encoded targets.
-    dice_loss = GeneralizedDiceLoss()(outputs, one_hot_targets)
+    # Calculate the Dice coefficient
+    dims = (2, 3, 4)  # Sum over spatial dimensions
+    intersection = (outputs * one_hot_targets).sum(dim=dims)
+    union = outputs.sum(dim=dims) + one_hot_targets.sum(dim=dims)
+    dice = (2 * intersection + epsilon) / (union + epsilon)
     
-    # Compute Cross-Entropy Loss using class indices.
-    ce_loss = F.cross_entropy(outputs, targets.long())
-    
-    return dice_weight * dice_loss + (1 - dice_weight) * ce_loss
+    # Dice loss is 1 minus the average Dice coefficient over all classes and batch
+    loss = 1 - dice.mean()
+    return loss
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -65,10 +73,10 @@ def main():
 
             optimizer.zero_grad()
 
-            # Use torch.amp.autocast with updated syntax.
+            # Use AMP autocast with updated syntax.
             with torch.amp.autocast(device_type=device.type):
                 outputs = model(inputs)
-                loss = combined_loss(outputs, targets, num_classes=9)
+                loss = dice_loss(outputs, targets, num_classes=9)
 
             scaler.scale(loss).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
