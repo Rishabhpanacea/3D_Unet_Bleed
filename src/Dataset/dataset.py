@@ -18,8 +18,8 @@ class CustomDatasetHW_3D(Dataset):
         self.datadict = datadict if datadict else {}
         self.reversed_dict = {v: k for k, v in self.datadict.items()}
 
-        self.output_size = output_size  # (H, W)
-        self.output_depth = (IMAGE_HEIGHT, IMAGE_WIDTH)   # Depth for resizing
+        self.output_size = (IMAGE_HEIGHT, IMAGE_WIDTH) # (H, W)
+        self.output_depth = output_depth  # Depth for resizing
 
         # Define 3D Transformations using TorchIO
         self.tio_transform = tio.Compose([
