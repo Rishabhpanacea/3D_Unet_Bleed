@@ -8,16 +8,15 @@ datadict = {'BackGround' :0,
             'Bleed-Hematoma' :7, 
             'Bleed-Subarachnoid': 8}
 
-TrainingDir = r"C:\Users\Rishabh\Documents\pytorch-3dunet\TrainingData"
+TrainingDir = "/home/omen/Documents/Rishabh/TrainingDataApp/TrainingData"
 
-batch_size = 1
-num_workers = 0
+batch_size = 4
+num_workers = 2
 pin_memory = True
 LEARNING_RATE = 1e-4
-num_epochs = 2
+num_epochs = 100
 
-IMAGE_HEIGHT = 256
-IMAGE_WIDTH = 256
-
-# IMAGE_HEIGHT = 64
-# IMAGE_WIDTH = 64
+# IMAGE_HEIGHT = 128
+# IMAGE_WIDTH = 128
+IMAGE_HEIGHT = 64
+IMAGE_WIDTH = 64
