@@ -72,6 +72,8 @@ class CustomDatasetHW_3D(Dataset):
         # Convert multi-category masks to a single-class mask
         newMaskVolume = np.stack([np.argmax(Maskvolume[:, i, :, :], axis=0) for i in range(Maskvolume.shape[1])], axis=0)
         newMaskVolume = np.expand_dims(newMaskVolume, axis=0)
+        
+        newMaskVolume[newMaskVolume > 0] = 1
 
         # Apply 3D Transformations using TorchIO
         image_tensor = torch.tensor(ImageVolume, dtype=torch.float32)
