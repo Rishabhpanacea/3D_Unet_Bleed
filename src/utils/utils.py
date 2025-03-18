@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import sys
+from PIL import Image
 
 import h5py
 import numpy as np
@@ -506,3 +507,97 @@ def custom_collate_Variable_HW_9classes(batch):
     NewMaskvolume = torch.tensor(NewMaskvolume, dtype=torch.uint8)
 
     return NewImageVolume, NewMaskvolume
+
+
+
+
+
+
+
+def custom_collate_2D(batch):
+    NewImageVolume = []
+    NewMaskvolume = []
+    for i in range(len(batch)):
+        ImageVolume = batch[i][0]
+        Maskvolume = batch[i][1]
+        NewImageVolume.append(ImageVolume)
+        NewMaskvolume.append(Maskvolume)
+
+
+    NewImageVolume = np.stack(NewImageVolume, axis=0)
+    NewMaskvolume = np.stack(NewMaskvolume, axis=0)
+
+    NewImageVolume = torch.tensor(NewImageVolume, dtype=torch.float32)
+    NewMaskvolume = torch.tensor(NewMaskvolume, dtype=torch.float16)
+
+    return NewImageVolume, NewMaskvolume
+
+
+
+
+def check_accuracy(loader, model, device="cuda"):
+    num_correct = 0
+    num_pixels = 0
+    dice_score = 0
+    model.eval()
+
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(device)
+            y = y.to(device)
+            preds = torch.sigmoid(model(x))
+            preds = (preds > 0.5).float()
+            num_correct += (preds == y).sum()
+            num_pixels += torch.numel(preds)
+            dice_score += (2 * (preds * y).sum()) / (
+                (preds + y).sum() + 1e-8
+            )
+            # print(dice_score)
+
+    print(
+        f"Got {num_correct}/{num_pixels} with acc {num_correct/num_pixels*100:.2f}"
+    )
+    print(f"Dice score: {dice_score/len(loader)}")
+    model.train()
+
+
+
+
+def save_prediction(image, mask):
+    gray_image = image
+    binary_mask = mask
+    
+    gray_norm = gray_image / 255.0
+
+    # Create an RGB image with grayscale as background
+    overlay = np.stack([gray_norm, gray_norm, gray_norm], axis=-1)
+    
+    # Define lighter colors for each class (0-8)
+    colors = {
+        1: [1.0, 0.6, 0.6],   # Light Red
+        2: [0.6, 1.0, 0.6],   # Light Green
+        3: [0.6, 0.6, 1.0],   # Light Blue
+        4: [1.0, 1.0, 0.6],   # Light Yellow
+        5: [1.0, 0.6, 1.0],   # Light Magenta
+        6: [0.6, 1.0, 1.0],   # Light Cyan
+        7: [0.8, 0.7, 1.0],   # Light Purple
+        8: [1.0, 0.8, 0.6]    # Light Orange
+    }
+    
+    # Create an RGB mask initialized with zeros
+    mask_rgb = np.zeros_like(overlay)
+
+    
+    # Assign colors based on binary_mask values
+    for value, color in colors.items():
+        mask_rgb[binary_mask == value] = color
+    
+    # Define transparency level
+    alpha = 0.4  # Transparency level (0-1)
+    
+    # Blend grayscale image with the colored mask
+    blended = overlay * (1 - alpha) + mask_rgb * alpha
+    blended = (blended*255).astype(np.uint8)
+    image = Image.fromarray(blended)
+    index = len(os.listdir('Predictions'))+1
+    image.save(f'Predictions/output_{index}.jpg', quality=100)

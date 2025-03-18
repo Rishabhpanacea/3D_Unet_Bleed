@@ -194,6 +194,58 @@ class ResidualUNetSE3D(AbstractUNet):
 
 
 
+
+
+
+class UNet2D(AbstractUNet):
+    """
+    2DUnet model from
+    `"U-Net: Convolutional Networks for Biomedical Image Segmentation" <https://arxiv.org/abs/1505.04597>`
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=4, is_segmentation=True, conv_padding=1,
+                 conv_upscale=2, upsample='default', dropout_prob=0.1, **kwargs):
+        super(UNet2D, self).__init__(in_channels=in_channels,
+                                     out_channels=out_channels,
+                                     final_sigmoid=final_sigmoid,
+                                     basic_module=DoubleConv,
+                                     f_maps=f_maps,
+                                     layer_order=layer_order,
+                                     num_groups=num_groups,
+                                     num_levels=num_levels,
+                                     is_segmentation=is_segmentation,
+                                     conv_padding=conv_padding,
+                                     conv_upscale=conv_upscale,
+                                     upsample=upsample,
+                                     dropout_prob=dropout_prob,
+                                     is3d=False)
+
+
+class ResidualUNet2D(AbstractUNet):
+    """
+    Residual 2DUnet model implementation based on https://arxiv.org/pdf/1706.00120.pdf.
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=5, is_segmentation=True, conv_padding=1,
+                 conv_upscale=2, upsample='default', dropout_prob=0.1, **kwargs):
+        super(ResidualUNet2D, self).__init__(in_channels=in_channels,
+                                             out_channels=out_channels,
+                                             final_sigmoid=final_sigmoid,
+                                             basic_module=ResNetBlock,
+                                             f_maps=f_maps,
+                                             layer_order=layer_order,
+                                             num_groups=num_groups,
+                                             num_levels=num_levels,
+                                             is_segmentation=is_segmentation,
+                                             conv_padding=conv_padding,
+                                             conv_upscale=conv_upscale,
+                                             upsample=upsample,
+                                             dropout_prob=dropout_prob,
+                                             is3d=False)
+
+
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     DunetModel = UNet3D(in_channels=1, out_channels=9).to(device)
