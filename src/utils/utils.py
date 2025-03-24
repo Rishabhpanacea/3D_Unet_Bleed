@@ -535,6 +535,34 @@ def custom_collate_2D(batch):
 
 
 
+def custom_collate_BHSD(batch):
+    max_depth = 0
+    for x,y in batch:
+        max_depth = max(max_depth, x.shape[1])
+        # print(x.shape, ' ', y.shape)
+
+    newImageVolume = []
+    newMaskVolume = []
+    for i in range(len(batch)):
+        remmaining_slice = max_depth - batch[i][0].shape[1]
+        # print(remmaining_slice)
+        if remmaining_slice > 0:
+            empty_slice = torch.zeros((1,remmaining_slice,batch[i][0].shape[2], batch[i][0].shape[3]))
+            newImageVolume.append(torch.cat((batch[i][0], empty_slice), dim=1))
+            newMaskVolume.append(torch.cat((batch[i][1], empty_slice), dim=1))
+        else:
+            newImageVolume.append(batch[i][0])
+            newMaskVolume.append(batch[i][1])
+    
+
+    newImageVolume = torch.stack(newImageVolume, dim=0)
+    newMaskVolume = torch.stack(newMaskVolume, dim=0)
+
+    return newImageVolume, newMaskVolume
+
+
+
+
 def check_accuracy(loader, model, device="cuda"):
     num_correct = 0
     num_pixels = 0

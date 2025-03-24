@@ -8,6 +8,15 @@ datadict = {'BackGround' :0,
             'Bleed-Hematoma' :7, 
             'Bleed-Subarachnoid': 8}
 
+
+newDatadict = {
+    'BackGround': 0,
+    'Bleed-Subdural': 1,
+    'Scalp-Hematoma': 2,
+    'Bleed-Others': 3,
+    'Bleed-Intraventricular': 4,
+    'Bleed-Epidural': 5,}
+
 TrainingDir = r"C:\Users\Rishabh\Documents\pytorch-3dunet\TrainingData"
 
 batch_size = 4

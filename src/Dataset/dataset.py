@@ -4,7 +4,7 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import cv2
-from src.configuration.config import datadict
+from src.configuration.config import datadict, newDatadict
 from src.configuration.config import IMAGE_HEIGHT, IMAGE_WIDTH
 
 import torchio as tio
@@ -814,3 +814,48 @@ class CustomDataset2D(Dataset):
             
         return newImageVolume, middlesliceMask
         # return ImageVolume ,Maskvolume
+
+
+
+
+
+
+class BHSD_3D(Dataset):
+    def __init__(self, image_dir, mask_dir, transform=None, datadict=newDatadict):
+        self.image_dir = image_dir
+        self.mask_dir = mask_dir
+        self.transform = transform
+        self.images = os.listdir(image_dir)
+        self.series = os.listdir(mask_dir)
+        self.datadict = datadict
+        reversed_dict = {v: k for k, v in datadict.items()}
+        self.reversed_dict = reversed_dict
+
+    def transform_volume(self, image_volume, mask_volume):
+        transformed = self.transform(
+                image=image_volume, 
+                mask=mask_volume
+            )
+        images = transformed['image']
+        masks = transformed['mask'].permute(2, 0, 1)
+        return images , masks
+
+    
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, index):
+        nii_segementation = nib.load(os.path.join(self.mask_dir, self.images[index]))
+        nii_image = nib.load(os.path.join(self.image_dir, self.images[index]))
+        
+        # Get the image data as a NumPy array
+        image_data = nii_image.get_fdata()
+        segementation_data = nii_segementation.get_fdata()
+
+        if self.transform is not None:
+            transformed_image_volume, transformed_mask_volume = self.transform_volume(image_data, segementation_data)
+
+        transformed_image_volume = transformed_image_volume.unsqueeze(0)
+        transformed_mask_volume = transformed_mask_volume.unsqueeze(0)
+        return transformed_image_volume, transformed_mask_volume
