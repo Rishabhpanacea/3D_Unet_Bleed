@@ -818,6 +818,7 @@ class CustomDataset2D(Dataset):
 
 
 
+<<<<<<< HEAD
 
 
 class BHSD_3D(Dataset):
@@ -859,3 +860,124 @@ class BHSD_3D(Dataset):
         transformed_image_volume = transformed_image_volume.unsqueeze(0)
         transformed_mask_volume = transformed_mask_volume.unsqueeze(0)
         return transformed_image_volume, transformed_mask_volume
+=======
+class CustomDataset2D_optimized(Dataset):
+    def __init__(self, image_dir, mask_dir, transform=None, datadict=None):
+        self.image_dir = image_dir
+        self.mask_dir = mask_dir
+        self.transform = transform
+
+        # Cache file lists (sorted for consistency)
+        self.images = sorted(os.listdir(image_dir))
+        self.series = sorted(os.listdir(mask_dir))
+        self.datadict = datadict if datadict is not None else {}
+        # Create a reversed dictionary mapping integer keys to category names
+        self.reversed_dict = {i: cat for i, cat in enumerate(self.datadict.values())}
+
+        # Precompute series lengths and store the first subfolder path per series
+        self.series_lengths = []
+        self.series_paths = []
+        for series in self.series:
+            series_path = os.path.join(self.mask_dir, series)
+            subfolders = sorted(os.listdir(series_path))
+            # Assumption: use the first subfolder for each series
+            folder_path = os.path.join(series_path, subfolders[0])
+            # Count the number of slices in this series
+            series_length = len(sorted(os.listdir(folder_path)))
+            self.series_lengths.append(series_length)
+            self.series_paths.append(series_path)
+
+        self.total_slices = sum(self.series_lengths)
+
+    def __len__(self):
+        return self.total_slices
+
+    def transform_volume(self, image_volume, mask_volume):
+        """
+        Applies the provided transformation to the image and mask volumes.
+        Assumes the transform expects an image/mask in H x W x channels order.
+        """
+        transformed = self.transform(
+            image=image_volume.transpose(1, 2, 0),  # (channels, H, W) -> (H, W, channels)
+            mask=mask_volume.transpose(1, 2, 0)
+        )
+        images = transformed['image']
+        masks = transformed['mask'].permute(2, 0, 1)  # (H, W, channels) -> (channels, H, W)
+        return images, masks
+
+    def __getitem__(self, index):
+        # Map the global index to the correct series and local index
+        global_index = index
+        count = 0
+        series_index = None
+        local_index = None
+        for i, length in enumerate(self.series_lengths):
+            if count + length > global_index:
+                series_index = i
+                local_index = global_index - count
+                break
+            count += length
+
+        if series_index is None:
+            raise IndexError("Index out of range")
+
+        # Get the series folder path (which holds subfolders for each category)
+        series_folder = os.path.join(self.mask_dir, self.series[series_index])
+        
+        # Build the mask volume by stacking each category's masks
+        mask_volume_channels = []
+        image_volume_slices = []  # Will be populated only once (from channel 0)
+        for channel in range(len(self.reversed_dict)):
+            category = self.reversed_dict[channel]
+            mask_cat_path = os.path.join(series_folder, category)
+            mask_files = sorted(os.listdir(mask_cat_path))
+            masks_list = []
+            for msk_file in mask_files:
+                msk_path = os.path.join(mask_cat_path, msk_file)
+                mask_img = np.array(Image.open(msk_path))
+                masks_list.append(mask_img)
+                # For the first category only, load the corresponding image if available
+                if channel == 0 and msk_file in self.images:
+                    img_path = os.path.join(self.image_dir, msk_file)
+                    image_img = np.array(Image.open(img_path))
+                    image_volume_slices.append(image_img)
+            mask_channel_volume = np.stack(masks_list, axis=0)
+            mask_volume_channels.append(mask_channel_volume)
+        mask_volume = np.stack(mask_volume_channels, axis=0)
+        image_volume = np.stack(image_volume_slices, axis=0)
+
+        # Combine mask channels by computing an argmax along the channel axis for each slice,
+        # then remap values: values > 0 become 0 and zeros become 1.
+        combined_masks = []
+        for i in range(mask_volume.shape[1]):
+            argmax_mask = np.argmax(mask_volume[:, i, :, :], axis=0)
+            remapped = np.where(argmax_mask > 0, 0, 1)
+            combined_masks.append(remapped)
+            # Update first channel with the remapped mask if needed
+            mask_volume[0, i, :, :] = mask_volume[0, i, :, :] + remapped
+        combined_mask = np.stack(combined_masks, axis=0)
+
+        # Build a 3-slice image volume for context (previous, current, next)
+        empty_slice = np.zeros_like(image_volume[0])
+        current_slice = image_volume[local_index]
+        if local_index == 0:
+            # If at the beginning, prepend an empty slice
+            next_slice = image_volume[local_index+1] if image_volume.shape[0] > 1 else empty_slice
+            volume = np.stack([empty_slice, current_slice, next_slice], axis=0)
+        elif local_index == image_volume.shape[0] - 1:
+            # If at the end, append an empty slice
+            prev_slice = image_volume[local_index-1]
+            volume = np.stack([prev_slice, current_slice, empty_slice], axis=0)
+        else:
+            prev_slice = image_volume[local_index-1]
+            next_slice = image_volume[local_index+1]
+            volume = np.stack([prev_slice, current_slice, next_slice], axis=0)
+
+        # Select the mask corresponding to the current slice from the first channel
+        current_mask = mask_volume[:, local_index, :, :]
+
+        if self.transform is not None:
+            volume, current_mask = self.transform_volume(volume, current_mask)
+
+        return volume, current_mask
+>>>>>>> 46387d1065ddc2f3c8720d30fc7541dba159578d
