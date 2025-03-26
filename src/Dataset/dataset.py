@@ -859,3 +859,193 @@ class BHSD_3D(Dataset):
         transformed_image_volume = transformed_image_volume.unsqueeze(0)
         transformed_mask_volume = transformed_mask_volume.unsqueeze(0)
         return transformed_image_volume, transformed_mask_volume
+    
+class CustomDataset2D_optimized(Dataset):
+    def __init__(self, image_dir, mask_dir, transform=None, datadict=None):
+        self.image_dir = image_dir
+        self.mask_dir = mask_dir
+        self.transform = transform
+
+        # Cache file lists (sorted for consistency)
+        self.images = sorted(os.listdir(image_dir))
+        self.series = sorted(os.listdir(mask_dir))
+        self.datadict = datadict if datadict is not None else {}
+        # Create a reversed dictionary mapping integer keys to category names
+        self.reversed_dict = {i: cat for i, cat in enumerate(self.datadict.values())}
+
+        # Precompute series lengths and store the first subfolder path per series
+        self.series_lengths = []
+        self.series_paths = []
+        for series in self.series:
+            series_path = os.path.join(self.mask_dir, series)
+            subfolders = sorted(os.listdir(series_path))
+            # Assumption: use the first subfolder for each series
+            folder_path = os.path.join(series_path, subfolders[0])
+            # Count the number of slices in this series
+            series_length = len(sorted(os.listdir(folder_path)))
+            self.series_lengths.append(series_length)
+            self.series_paths.append(series_path)
+
+        self.total_slices = sum(self.series_lengths)
+
+    def __len__(self):
+        return self.total_slices
+
+    def transform_volume(self, image_volume, mask_volume):
+        """
+        Applies the provided transformation to the image and mask volumes.
+        Assumes the transform expects an image/mask in H x W x channels order.
+        """
+        transformed = self.transform(
+            image=image_volume.transpose(1, 2, 0),  # (channels, H, W) -> (H, W, channels)
+            mask=mask_volume.transpose(1, 2, 0)
+        )
+        images = transformed['image']
+        masks = transformed['mask'].permute(2, 0, 1)  # (H, W, channels) -> (channels, H, W)
+        return images, masks
+
+    def __getitem__(self, index):
+        # Map the global index to the correct series and local index
+        global_index = index
+        count = 0
+        series_index = None
+        local_index = None
+        for i, length in enumerate(self.series_lengths):
+            if count + length > global_index:
+                series_index = i
+                local_index = global_index - count
+                break
+            count += length
+
+        if series_index is None:
+            raise IndexError("Index out of range")
+
+        # Get the series folder path (which holds subfolders for each category)
+        series_folder = os.path.join(self.mask_dir, self.series[series_index])
+        
+        # Build the mask volume by stacking each category's masks
+        mask_volume_channels = []
+        image_volume_slices = []  # Will be populated only once (from channel 0)
+        for channel in range(len(self.reversed_dict)):
+            category = self.reversed_dict[channel]
+            mask_cat_path = os.path.join(series_folder, category)
+            mask_files = sorted(os.listdir(mask_cat_path))
+            masks_list = []
+            for msk_file in mask_files:
+                msk_path = os.path.join(mask_cat_path, msk_file)
+                mask_img = np.array(Image.open(msk_path))
+                masks_list.append(mask_img)
+                # For the first category only, load the corresponding image if available
+                if channel == 0 and msk_file in self.images:
+                    img_path = os.path.join(self.image_dir, msk_file)
+                    image_img = np.array(Image.open(img_path))
+                    image_volume_slices.append(image_img)
+            mask_channel_volume = np.stack(masks_list, axis=0)
+            mask_volume_channels.append(mask_channel_volume)
+        mask_volume = np.stack(mask_volume_channels, axis=0)
+        image_volume = np.stack(image_volume_slices, axis=0)
+
+
+
+
+
+
+
+
+# from torch.utils.data import Dataset, DataLoader
+# import albumentations as A
+# from albumentations.pytorch import ToTensorV2
+
+import nibabel as nib
+
+class Single_Volume_patch_Class_3D(Dataset):
+    def __init__(self, ImagePath, MaskPath, transform=None, patch_shape = [64, 64, 16] , stride_shape = [16, 16, 8]):
+        self.ImagePath = ImagePath
+        self.MaskPath = MaskPath
+        nii_segementation = nib.load(self.MaskPath)
+        nii_image = nib.load(self.ImagePath)
+        image_data = nii_image.get_fdata()
+        segementation_data = nii_segementation.get_fdata()
+        self.Height = image_data.shape[0] 
+        self.Width = image_data.shape[1]
+        self.depth = image_data.shape[2]
+        self.patch_shape = patch_shape
+        self.stride_shape = stride_shape
+        self.transform = transform
+
+
+    def get_image_and_mask(self, volume_index):
+        nii_segementation = nib.load(self.MaskPath)
+        nii_image = nib.load(self.ImagePath)
+        image_data = nii_image.get_fdata()
+        segementation_data = nii_segementation.get_fdata()
+        input_volume = image_data[volume_index[0]:volume_index[0]+self.patch_shape[0], volume_index[1]:volume_index[1]+self.patch_shape[1], volume_index[2]:volume_index[2]+self.patch_shape[2]]
+        segementation_data = segementation_data[volume_index[0]:volume_index[0]+self.patch_shape[0], volume_index[1]:volume_index[1]+self.patch_shape[1], volume_index[2]:volume_index[2]+self.patch_shape[2]]
+
+        if input_volume.shape[0] != self.patch_shape[0]:
+            empty_volume = np.zeros((self.patch_shape[0]-input_volume.shape[0], input_volume.shape[1], input_volume.shape[2]))
+            input_volume = np.concatenate((input_volume, empty_volume), axis=0)
+            segementation_data = np.concatenate((segementation_data, empty_volume), axis=0)
+        
+        if input_volume.shape[1] != self.patch_shape[1]:
+            empty_volume = np.zeros((input_volume.shape[0], self.patch_shape[1]-input_volume.shape[1], input_volume.shape[2]))
+            input_volume = np.concatenate((input_volume, empty_volume), axis=1)
+            segementation_data = np.concatenate((segementation_data, empty_volume), axis=1)
+        
+        
+        if input_volume.shape[2] != self.patch_shape[2]:
+            empty_volume = np.zeros((input_volume.shape[0], input_volume.shape[1], self.patch_shape[2]-input_volume.shape[2]))
+            input_volume = np.concatenate((input_volume, empty_volume), axis=2)
+            segementation_data = np.concatenate((segementation_data, empty_volume), axis=2)
+
+        return input_volume, segementation_data
+
+    def transform_volume(self, image_volume, mask_volume):
+        transformed = self.transform(
+                image=image_volume, 
+                mask=mask_volume
+            )
+        images = transformed['image']
+        masks = transformed['mask'].permute(2, 0, 1)
+        return images , masks
+        
+        
+    def __len__(self):
+        self.x_patches = (self.Height-self.patch_shape[0])//self.stride_shape[0]+1
+        self.y_patches = (self.Width-self.patch_shape[1])//self.stride_shape[1]+1
+        self.z_patches = (self.depth-self.patch_shape[2])//self.stride_shape[2]+1
+        self.num_patches = self.x_patches*self.y_patches*self.z_patches
+        return self.num_patches
+
+        
+        
+    def __getitem__(self, index):
+        slice_number = (index//(self.x_patches*self.y_patches))*self.stride_shape[2]
+        index = index%(self.x_patches*self.y_patches)
+        row_number = (index//self.y_patches)*self.stride_shape[1]
+        index = (index%self.y_patches)*self.stride_shape[0]
+        x, y, z = index , row_number, slice_number
+        volume_index = [x, y, z]
+        image_volume , mask_volume = self.get_image_and_mask(volume_index)
+
+        if self.transform is not None:
+            transformed_image_volume, transformed_mask_volume = self.transform_volume(image_volume, mask_volume)
+
+        
+        transformed_image_volume = transformed_image_volume.unsqueeze(0)
+        transformed_mask_volume = transformed_mask_volume.unsqueeze(0)
+
+        return transformed_image_volume, transformed_mask_volume
+
+
+        return image_volume , mask_volume
+        
+        
+
+        
+        return x, y, z
+
+
+
+
+

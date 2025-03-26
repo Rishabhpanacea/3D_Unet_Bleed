@@ -17,7 +17,7 @@ newDatadict = {
     'Bleed-Intraventricular': 4,
     'Bleed-Epidural': 5,}
 
-TrainingDir = r"C:\Users\Rishabh\Documents\pytorch-3dunet\TrainingData"
+TrainingDir = "C:/Users/Rishabh/Downloads/label_192/label_192"
 
 batch_size = 4
 num_workers = 0
