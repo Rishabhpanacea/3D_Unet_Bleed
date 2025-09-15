@@ -12,6 +12,7 @@ import torch.optim as optim
 import torch.nn as nn
 from src.Models.D_UNet import UNet3D
 import os
+from src.utils.losses import BCEDiceLoss
 
 
 
@@ -40,12 +41,23 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Initialize model and loss function
-    model = UNet3D(in_channels=1, out_channels=1).to(device)
+    model = UNet3D(in_channels=1, out_channels=1,f_maps= 32,final_sigmoid=True,num_groups= 8, layer_order= 'gcr').to(device)
+    checkpoint = torch.load("/home/omen/Downloads/best_checkpoint.pytorch")
+    print(checkpoint.keys())
+    model.load_state_dict(checkpoint['model_state_dict'])
+    # lossfn = BCEDiceLoss()
     lossfn = nn.BCEWithLogitsLoss()
 
     # Prepare dataset and DataLoader
-    mask_dir = os.path.join(TrainingDir, 'ground truths/ID_0b10cbee_ID_f91d6a7cd2.nii.gz')
-    image_dir = os.path.join(TrainingDir, 'images/ID_0b10cbee_ID_f91d6a7cd2.nii.gz')
+    # mask_dir = os.path.join(TrainingDir, 'ground truths/ID_0b10cbee_ID_f91d6a7cd2.nii.gz')
+    # # mask_dir = '/home/omen/Downloads/2025-03-26 19:04:28.864/random_volume.nii.gz'
+    # image_dir = os.path.join(TrainingDir, 'images/ID_0b10cbee_ID_f91d6a7cd2.nii.gz')
+
+    # mask_dir = os.path.join(TrainingDir, 'ground truths/ID_69b19057_ID_44d0da38f2.nii.gz')
+    # image_dir = os.path.join(TrainingDir, 'images/ID_69b19057_ID_44d0da38f2.nii.gz')
+
+    image_dir = '/home/omen/Downloads/2025-03-26 23:38:58.712/inputs.nii.gz'
+    mask_dir = '/home/omen/Downloads/2025-03-26 23:40:06.346/targets.nii.gz'
     dataset = Single_Volume_patch_Class_3D(image_dir, mask_dir, transform=train_transform)
 
     train_loader = DataLoader(
@@ -67,28 +79,32 @@ def main():
         running_loss = 0.0
         
         for batch_idx, (inputs, targets) in enumerate(train_loader):
+            targets[targets>0] = 1
             inputs = inputs.to(device)
             targets = targets.to(device)
             
             optimizer.zero_grad()
 
             # Forward pass with mixed precision
-            with torch.cuda.amp.autocast():
-                outputs = model(inputs)
-                loss = lossfn(outputs, targets)
+            # with torch.cuda.amp.autocast():
+            outputs = model(inputs)
+            loss = lossfn(outputs, targets)
+
+            loss.backward()
+            optimizer.step()
             
             # Backpropagation with scaled gradients
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            # scaler.scale(loss).backward()
+            # scaler.step(optimizer)
+            # scaler.update()
 
             running_loss += loss.item()
             
             if batch_idx % 10 == 0:
-                print(f"Epoch [{epoch+1}/{num_epochs}], Step [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
+                print(f"Epoch [{epoch+1}/{num_epochs}], Step [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item()}")
 
         avg_loss = running_loss / len(train_loader)
-        print(f"Epoch [{epoch+1}/{num_epochs}], Average Loss: {avg_loss:.4f}")
+        print(f"Epoch [{epoch+1}/{num_epochs}], Average Loss: {avg_loss}")
         
         # Save model checkpoint
         checkpoint_path = f"model_checkpoint.pth"

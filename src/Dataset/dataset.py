@@ -959,7 +959,7 @@ class CustomDataset2D_optimized(Dataset):
 import nibabel as nib
 
 class Single_Volume_patch_Class_3D(Dataset):
-    def __init__(self, ImagePath, MaskPath, transform=None, patch_shape = [64, 64, 16] , stride_shape = [16, 16, 8]):
+    def __init__(self, ImagePath, MaskPath, transform=None, patch_shape = [128, 128, 128] , stride_shape = [32, 32, 32]):
         self.ImagePath = ImagePath
         self.MaskPath = MaskPath
         nii_segementation = nib.load(self.MaskPath)

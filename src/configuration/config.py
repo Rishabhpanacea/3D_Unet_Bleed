@@ -17,13 +17,13 @@ newDatadict = {
     'Bleed-Intraventricular': 4,
     'Bleed-Epidural': 5,}
 
-TrainingDir = "C:/Users/Rishabh/Downloads/label_192/label_192"
+TrainingDir = '/home/omen/Downloads/label_192'
 
-batch_size = 4
-num_workers = 0
+batch_size = 2
+num_workers = 8
 pin_memory = True
-LEARNING_RATE = 1e-4
-num_epochs = 100
+LEARNING_RATE = 0.0005
+num_epochs = 300
 
 # IMAGE_HEIGHT = 128
 # IMAGE_WIDTH = 128
